@@ -2,7 +2,6 @@ import { metrics, risks } from "@/lib/mockData";
 import type { AttentionScore } from "@/lib/types";
 import { AlertTriangle, Clock, FileWarning, ShieldAlert, Zap } from "lucide-react";
 import { useState } from "react";
-import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card } from "../ui/Card";
 import { SectionHeader } from "../ui/SectionHeader";

@@ -41,12 +41,20 @@ import { clamp } from "@/lib/utils";
 import { getInitialParam, syncUrlState } from "@/lib/urlState";
 
 export default function Home() {
+  const initialSection = getInitialParam(navItems.map((i) => i.id), "section", "overview");
+  const initialRiskId = getInitialParam(risks.map((r) => r.id), "risk", risks[0].id);
+  const initialDecisionId = getInitialParam(
+    decisions.map((d) => d.id),
+    "decision",
+    decisions[0].id,
+  );
+
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Summary");
-  const [activeSection, setActiveSection] = useState("overview");
+  const [activeSection, setActiveSection] = useState(initialSection);
   const [queryInput, setQueryInput] = useState("What changed this week across the business?");
-  const [selectedRiskId, setSelectedRiskId] = useState(risks[0].id);
-  const [selectedDecisionId, setSelectedDecisionId] = useState(decisions[0].id);
+  const [selectedRiskId, setSelectedRiskId] = useState(initialRiskId);
+  const [selectedDecisionId, setSelectedDecisionId] = useState(initialDecisionId);
   const [selectedAgentName, setSelectedAgentName] = useState(agents[1].name);
   const [selectedActionLane, setSelectedActionLane] = useState("In Progress");
   const [headcountDelta, setHeadcountDelta] = useState(2);
@@ -81,16 +89,6 @@ export default function Home() {
     gateChecks.assumptionsReviewed &&
     gateChecks.evidenceVerified &&
     gateChecks.ownerAligned;
-
-  // Sync URL params → state after hydration to avoid SSR/client mismatch
-  useEffect(() => {
-    const section = getInitialParam(navItems.map((i) => i.id), "section", "overview");
-    const riskId = getInitialParam(risks.map((r) => r.id), "risk", risks[0].id);
-    const decisionId = getInitialParam(decisions.map((d) => d.id), "decision", decisions[0].id);
-    setActiveSection(section);
-    setSelectedRiskId(riskId);
-    setSelectedDecisionId(decisionId);
-  }, []);
 
   const trackEvent = (event: TelemetryEvent, meta: string) => {
     const nextId = telemetryQueue.length + telemetryLogs.length + 1;

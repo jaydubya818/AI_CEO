@@ -1,0 +1,5 @@
+telemetry=off
+browser-sandbox=strict
+auto-ship=disabled
+auto-deploy=disabled
+profile=product-ui

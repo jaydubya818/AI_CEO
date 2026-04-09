@@ -1,0 +1,6 @@
+# Editor / local tooling
+.cursor/
+
+# OS
+.DS_Store
+

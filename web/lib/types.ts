@@ -75,6 +75,93 @@ export type Decision = {
   cabinetComposition: string[];
 };
 
+export type DecisionOutcomeStatus = "executed" | "deferred" | "reversed" | "validated" | "invalidated";
+
+export type DecisionOutcome = {
+  status: DecisionOutcomeStatus;
+  outcomeNotes: string;
+  changedSinceDecision: string;
+  updatedAt: string;
+};
+
+export type ProposalReviewStatus = "proposed" | "under_review" | "approved" | "rejected" | "executed";
+export type PromotionKind = "memory" | "expertise";
+
+export type ReviewedPromotionPayload = {
+  targetRepo: "AI_CEO";
+  promotionKind: PromotionKind;
+  decisionId: string;
+  title: string;
+  summary: string;
+  evidenceRefs: string[];
+  recommendation: string;
+  kbWritebackContract: {
+    suggestedCommand: string;
+    targetPath: string;
+    reviewRequired: true;
+  };
+};
+
+export type ReviewerRole = "reviewer" | "governance-admin";
+
+export type ReviewerIdentity = {
+  id: string;
+  displayName: string;
+  role: ReviewerRole;
+};
+
+export type PromotionAuditEntry = {
+  reviewer: string;
+  reviewerId?: string;
+  reviewerRole?: ReviewerRole;
+  action: "approve" | "reject" | "execute-writeback" | "ingest-reviewed";
+  rationale: string;
+  at: string;
+};
+
+export type WritebackExecution = {
+  executedAt: string;
+  targetPath: string;
+  bytesWritten: number;
+  ingestResponse?: {
+    ingested: boolean;
+    ingestRecordPath: string;
+    canonicalPath: string;
+  } | null;
+};
+
+export type MemoryPromotionProposal = {
+  id: string;
+  decisionId: string;
+  kind: "memory";
+  title: string;
+  summary: string;
+  evidenceRefs: string[];
+  status: ProposalReviewStatus;
+  reviewNotes?: string;
+  approvedPayload: ReviewedPromotionPayload | null;
+  audit: PromotionAuditEntry[];
+  writeback?: WritebackExecution | null;
+  createdAt: string;
+  reviewedAt?: string;
+};
+
+export type ExpertiseUpdateProposal = {
+  id: string;
+  decisionId: string;
+  kind: "expertise";
+  title: string;
+  summary: string;
+  evidenceRefs: string[];
+  status: ProposalReviewStatus;
+  reviewNotes?: string;
+  approvedPayload: ReviewedPromotionPayload | null;
+  audit: PromotionAuditEntry[];
+  writeback?: WritebackExecution | null;
+  createdAt: string;
+  reviewedAt?: string;
+};
+
 export type DecisionReplay = {
   id: string;
   decisionTitle: string;
@@ -185,6 +272,106 @@ export type Brief = {
   validationErrors: BriefSection[];
 };
 
+export type BoardRound = {
+  id: string;
+  round: number;
+  phase: "broadcast" | "targeted-reply";
+  role: string;
+  target: "all" | string;
+  summary: string;
+};
+
+export type FinalPosition = {
+  role: string;
+  recommendation: string;
+  strongestRationale: string;
+  keyRisk: string;
+  conditionThatChangesView: string;
+  confidence: number;
+};
+
+export type SpecialistOutput = {
+  role: "Product Strategist" | "Revenue Agent" | "Technical Architect" | "Contrarian";
+  recommendation: string;
+  strongestRationale: string;
+  keyRisk: string;
+  conditionThatChangesView: string;
+  confidence: number;
+};
+
+export type BoardTension = {
+  id: string;
+  between: [string, string];
+  description: string;
+  resolution?: string;
+};
+
+export type DecisionPacket = {
+  brief: Pick<Brief, "id" | "title" | "situation" | "stakes" | "constraints" | "keyQuestions">;
+  kbEvidence: {
+    provider: string;
+    query: string;
+    hits: Array<{
+      path: string;
+      title?: string;
+      snippet: string;
+      score?: number;
+    }>;
+  } | null;
+  recommendation: {
+    summary: string;
+    rationale: string[];
+    missingEvidence: string[];
+    confidence: number;
+  };
+  boardDeliberation: {
+    ceoFrame: string;
+    boardRounds: BoardRound[];
+    finalPositions: FinalPosition[];
+    stanceMatrix: Array<{
+      role: string;
+      stance: "support" | "conditional" | "dissent";
+      confidence: number;
+      keyRisk: string;
+    }>;
+    resolvedTensions: BoardTension[];
+    unresolvedTensions: BoardTension[];
+    recommendation: string;
+    risks: string[];
+    nextActions: string[];
+    supportingEvidenceRefs: string[];
+    specialistOutputs?: SpecialistOutput[];
+    sofieReview: {
+      actor: "sofie";
+      kind: string;
+      verdict: string;
+      summary: string;
+      details: string[];
+      closureRecommendation: string;
+      scopeDriftDetected: boolean;
+      escalation: {
+        escalate: boolean;
+        reason: string | null;
+        why: string;
+      };
+    };
+  };
+  sofieReview: {
+    actor: "sofie";
+    kind: string;
+    verdict: string;
+    summary: string;
+    details: string[];
+    closureRecommendation: string;
+    scopeDriftDetected: boolean;
+    escalation: {
+      escalate: boolean;
+      reason: string | null;
+      why: string;
+    };
+  };
+};
+
 // ─── Agent Expertise ─────────────────────────────────────────────────────────
 
 export type AgentExpertise = {
@@ -208,6 +395,53 @@ export type AgentSummary = {
   model?: string;
   temperament?: string;
   reasoning?: string;
+};
+
+export type DecisionTimelineEvent = {
+  id: string;
+  at: string;
+  type:
+    | "decision_created"
+    | "outcome_updated"
+    | "memory_proposed"
+    | "memory_reviewed"
+    | "expertise_proposed"
+    | "expertise_reviewed";
+  summary: string;
+};
+
+export type StoredDecisionRecord = {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  brief: Brief;
+  packet: DecisionPacket;
+  outcome: DecisionOutcome | null;
+  memoryProposal: MemoryPromotionProposal | null;
+  expertiseProposal: ExpertiseUpdateProposal | null;
+  timeline: DecisionTimelineEvent[];
+  activeExpertise: string[];
+};
+
+export type GovernanceQueueItem = {
+  decisionId: string;
+  title: string;
+  kind: PromotionKind;
+  status: ProposalReviewStatus;
+  reviewedAt: string | null;
+  writebackExecuted: boolean;
+  requiredApprovals: number;
+  approvals: number;
+};
+
+export type DecisionComparisonRow = {
+  id: string;
+  title: string;
+  recommendation: string;
+  confidence: number;
+  outcomeStatus: DecisionOutcomeStatus | "pending";
+  domain: string;
+  changedSinceDecision: string;
 };
 
 export type StoryStep = {

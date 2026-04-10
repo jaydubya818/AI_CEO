@@ -36,7 +36,7 @@ import {
 } from "@/lib/mockData";
 import { navItems } from "@/lib/navigation";
 import { makeTelemetryLog } from "@/lib/telemetry";
-import type { GateChecks, TelemetryEvent, TelemetryLog } from "@/lib/types";
+import type { DecisionPacket, GateChecks, TelemetryEvent, TelemetryLog, Brief, StoredDecisionRecord, DecisionComparisonRow, DecisionOutcomeStatus, GovernanceQueueItem, ReviewerIdentity } from "@/lib/types";
 import { clamp } from "@/lib/utils";
 import { getInitialParam, syncUrlState } from "@/lib/urlState";
 
@@ -70,6 +70,17 @@ export default function Home() {
   const [storyStep, setStoryStep] = useState(0);
   const [telemetryQueue, setTelemetryQueue] = useState<TelemetryLog[]>([]);
   const [telemetryLogs, setTelemetryLogs] = useState<TelemetryLog[]>([]);
+  const [decisionPacket, setDecisionPacket] = useState<DecisionPacket | null>(null);
+  const [decisionHistory, setDecisionHistory] = useState<StoredDecisionRecord[]>([]);
+  const [decisionComparison, setDecisionComparison] = useState<DecisionComparisonRow[]>([]);
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<string>("all");
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [activeExpertise, setActiveExpertise] = useState<string[]>([]);
+  const [governanceQueue, setGovernanceQueue] = useState<GovernanceQueueItem[]>([]);
+  const [governanceStatusFilter, setGovernanceStatusFilter] = useState("all");
+  const [governanceKindFilter, setGovernanceKindFilter] = useState("all");
+  const [activeReviewer, setActiveReviewer] = useState<ReviewerIdentity>({ id: "reviewer-1", displayName: "Alex Reviewer", role: "reviewer" });
+  const [reviewers, setReviewers] = useState<ReviewerIdentity[]>([]);
 
   const selectedRisk = risks.find((risk) => risk.id === selectedRiskId) ?? risks[0];
   const selectedDecision =
@@ -115,6 +126,46 @@ export default function Home() {
     });
   }, [selectedRiskId, selectedDecisionId, activeSection]);
 
+  useEffect(() => {
+    const params = new URLSearchParams({ status: historyStatusFilter, q: historyQuery });
+    fetch(`/api/decision-history?${params.toString()}`)
+      .then((response) => response.json())
+      .then((payload: { records: StoredDecisionRecord[]; comparison: DecisionComparisonRow[] }) => {
+        setDecisionHistory(payload.records ?? []);
+        setDecisionComparison(payload.comparison ?? []);
+      })
+      .catch(() => undefined);
+  }, [decisionPacket, historyStatusFilter, historyQuery]);
+
+  useEffect(() => {
+    fetch("/api/runtime-expertise")
+      .then((response) => response.json())
+      .then((payload: { activeExpertise: Array<{ summary: string }> }) => {
+        setActiveExpertise((payload.activeExpertise ?? []).map((entry) => entry.summary));
+      })
+      .catch(() => undefined);
+
+    const queueParams = new URLSearchParams({
+      ...(governanceStatusFilter !== "all" ? { status: governanceStatusFilter } : {}),
+      ...(governanceKindFilter !== "all" ? { kind: governanceKindFilter } : {}),
+    });
+
+    fetch(`/api/governance-queue?${queueParams.toString()}`)
+      .then((response) => response.json())
+      .then((payload: { queue: GovernanceQueueItem[] }) => {
+        setGovernanceQueue(payload.queue ?? []);
+      })
+      .catch(() => undefined);
+
+    fetch("/api/auth/reviewer")
+      .then((response) => response.json())
+      .then((payload: { activeReviewer: ReviewerIdentity; reviewers: ReviewerIdentity[] }) => {
+        setActiveReviewer(payload.activeReviewer);
+        setReviewers(payload.reviewers ?? []);
+      })
+      .catch(() => undefined);
+  }, [decisionHistory, governanceStatusFilter, governanceKindFilter]);
+
   const handleSectionClick = (id: string) => {
     setActiveSection(id);
     setMobileNavOpen(false);
@@ -149,6 +200,21 @@ export default function Home() {
   };
 
   const evidenceCitations = useMemo(() => selectedRisk.citations, [selectedRisk]);
+
+  const handleRunDeliberation = async (brief: Brief) => {
+    trackEvent("brief_submitted", brief.id);
+    const response = await fetch("/api/decision-packet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(brief),
+    }).catch(() => null);
+    if (response?.ok) {
+      const packet = (await response.json()) as DecisionPacket;
+      const runtimeModule = await import("@/lib/runtimeExpertise");
+      setDecisionPacket(runtimeModule.applyRuntimeExpertise(packet, activeExpertise));
+    }
+    handleSectionClick("deliberation");
+  };
 
   return (
     <AppShell
@@ -185,6 +251,11 @@ export default function Home() {
           decisions={decisions}
           selectedDecision={selectedDecision}
           selectedDecisionId={selectedDecisionId}
+          packet={decisionPacket}
+          decisionHistory={decisionHistory}
+          decisionComparison={decisionComparison}
+          historyStatusFilter={historyStatusFilter}
+          historyQuery={historyQuery}
           headcountDelta={headcountDelta}
           deliveryFocus={deliveryFocus}
           riskTolerance={riskTolerance}
@@ -204,15 +275,104 @@ export default function Home() {
           onGateChange={setGateChecks}
           onCommitDecision={() => trackEvent("decision_committed", selectedDecision.title)}
           onOpenActions={() => handleSectionClick("actions")}
-        />
-        <BriefingsSection
-          onRunDeliberation={(briefId) => {
-            trackEvent("brief_submitted", briefId);
+          onHistoryStatusFilterChange={setHistoryStatusFilter}
+          onHistoryQueryChange={setHistoryQuery}
+          onReopenDecision={(record) => {
+            setDecisionPacket(record.packet);
+            setSelectedDecisionId(record.id);
             handleSectionClick("deliberation");
           }}
+          onUpdateOutcome={async (decisionId, status, outcomeNotes, changedSinceDecision) => {
+            const response = await fetch("/api/decision-outcome", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ decisionId, status, outcomeNotes, changedSinceDecision }),
+            }).catch(() => null);
+            if (response?.ok) {
+              const payload = await response.json();
+              setDecisionHistory((prev) => prev.map((record) => record.id === decisionId ? payload.record : record));
+              setDecisionComparison((prev) => prev.map((row) => row.id === decisionId ? { ...row, outcomeStatus: status } : row));
+            }
+          }}
+          onPromoteMemory={async (decisionId, title, summary) => {
+            const response = await fetch("/api/memory-promotion", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ decisionId, title, summary }),
+            }).catch(() => null);
+            if (response?.ok) {
+              const payload = await response.json();
+              setDecisionHistory((prev) => prev.map((record) => record.id === decisionId ? payload.record : record));
+            }
+          }}
+          onProposeExpertise={async (decisionId, title, summary) => {
+            const response = await fetch("/api/expertise-promotion", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ decisionId, title, summary }),
+            }).catch(() => null);
+            if (response?.ok) {
+              const payload = await response.json();
+              setDecisionHistory((prev) => prev.map((record) => record.id === decisionId ? payload.record : record));
+            }
+          }}
+          governanceQueue={governanceQueue}
+          governanceStatusFilter={governanceStatusFilter}
+          governanceKindFilter={governanceKindFilter}
+          activeReviewer={activeReviewer}
+          reviewers={reviewers}
+          onGovernanceStatusFilterChange={setGovernanceStatusFilter}
+          onGovernanceKindFilterChange={setGovernanceKindFilter}
+          onReviewerChange={async (reviewerId) => {
+            const response = await fetch("/api/auth/reviewer", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reviewerId }),
+            }).catch(() => null);
+            if (response?.ok) {
+              const payload = await response.json();
+              setActiveReviewer(payload.activeReviewer);
+              setReviewers(payload.reviewers ?? []);
+            }
+          }}
+          onReviewPromotion={async (decisionId, kind, action, reviewNotes) => {
+            const response = await fetch("/api/promotion-review", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ decisionId, kind, action, reviewNotes }),
+            }).catch(() => null);
+            if (response?.ok) {
+              const payload = await response.json();
+              setDecisionHistory((prev) => prev.map((record) => record.id === decisionId ? payload.record : record));
+            }
+          }}
+          onExecuteWriteback={async (decisionId, kind) => {
+            const response = await fetch("/api/writeback-execute", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ decisionId, kind, reviewer: activeReviewer.displayName, rationale: `Approved export executed by ${activeReviewer.displayName}` }),
+            }).catch(() => null);
+            if (response?.ok) {
+              const payload = await response.json();
+              setDecisionHistory((prev) => prev.map((record) => record.id === decisionId ? payload.record : record));
+            }
+          }}
+          onExecuteReviewedIngest={async (decisionId, kind) => {
+            const response = await fetch("/api/reviewed-ingest-execute", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ decisionId, kind, reviewer: activeReviewer.displayName, rationale: `Reviewed ingest executed by ${activeReviewer.displayName}` }),
+            }).catch(() => null);
+            if (response?.ok) {
+              const payload = await response.json();
+              setDecisionHistory((prev) => prev.map((record) => record.id === decisionId ? payload.record : record));
+            }
+          }}
         />
+        <BriefingsSection onRunDeliberation={handleRunDeliberation} />
         <DeliberationSection
           session={activeDeliberation}
+          packet={decisionPacket}
           onOpenMemo={() => handleSectionClick("decisions")}
           onSendToInbox={() => {
             trackEvent("deliberation_sent_to_inbox", activeDeliberation.briefTitle);

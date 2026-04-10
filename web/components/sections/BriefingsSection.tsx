@@ -40,7 +40,7 @@ function BriefCard({
   onRun,
 }: {
   brief: Brief;
-  onRun: (id: string) => void;
+  onRun: (brief: Brief) => void;
 }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
@@ -85,7 +85,7 @@ function BriefCard({
           variant={brief.valid ? "default" : "secondary"}
           size="sm"
           disabled={!brief.valid}
-          onClick={() => onRun(brief.id)}
+          onClick={() => onRun(brief)}
           className={!brief.valid ? "cursor-not-allowed text-slate-500" : ""}
         >
           <Play className="h-3.5 w-3.5" />
@@ -220,7 +220,7 @@ function BriefBuilder({ onSubmit }: { onSubmit: (brief: Brief) => void }) {
 export function BriefingsSection({
   onRunDeliberation,
 }: {
-  onRunDeliberation: (briefId: string) => void;
+  onRunDeliberation: (brief: Brief) => void;
 }) {
   const [briefs, setBriefs] = useState<Brief[]>(briefTemplates);
   const [showBuilder, setShowBuilder] = useState(false);

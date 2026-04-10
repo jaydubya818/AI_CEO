@@ -1,0 +1,157 @@
+[
+  {
+    "id": "brief-3",
+    "createdAt": "2026-04-10T07:08:24.336Z",
+    "updatedAt": "2026-04-10T07:08:24.337Z",
+    "brief": {
+      "id": "brief-3",
+      "title": "Expertise policy",
+      "situation": "Need review discipline",
+      "stakes": "Governance quality",
+      "constraints": "Owner: COO",
+      "keyQuestions": [
+        "How should expertise be promoted?"
+      ],
+      "createdAt": "Today",
+      "valid": true,
+      "validationErrors": []
+    },
+    "packet": {
+      "brief": {
+        "id": "brief-1",
+        "title": "Q3 Hiring Acceleration",
+        "situation": "Queues are rising",
+        "stakes": "Delivery risk",
+        "constraints": "Owner: COO",
+        "keyQuestions": [
+          "Which roles matter most?"
+        ]
+      },
+      "kbEvidence": null,
+      "recommendation": {
+        "summary": "Proceed with a bounded decision.",
+        "rationale": [
+          "Rationale"
+        ],
+        "missingEvidence": [],
+        "confidence": 74
+      },
+      "boardDeliberation": {
+        "ceoFrame": "CEO frame",
+        "boardRounds": [],
+        "finalPositions": [],
+        "stanceMatrix": [],
+        "resolvedTensions": [],
+        "unresolvedTensions": [],
+        "recommendation": "Proceed",
+        "risks": [],
+        "nextActions": [],
+        "supportingEvidenceRefs": [
+          "README.md"
+        ],
+        "sofieReview": {
+          "actor": "sofie",
+          "kind": "review",
+          "verdict": "answer",
+          "summary": "ok",
+          "details": [],
+          "closureRecommendation": "continue",
+          "scopeDriftDetected": false,
+          "escalation": {
+            "escalate": false,
+            "reason": null,
+            "why": "ok"
+          }
+        }
+      },
+      "sofieReview": {
+        "actor": "sofie",
+        "kind": "review",
+        "verdict": "answer",
+        "summary": "ok",
+        "details": [],
+        "closureRecommendation": "continue",
+        "scopeDriftDetected": false,
+        "escalation": {
+          "escalate": false,
+          "reason": null,
+          "why": "ok"
+        }
+      }
+    },
+    "outcome": null,
+    "memoryProposal": null,
+    "expertiseProposal": {
+      "id": "expertise-brief-3",
+      "decisionId": "brief-3",
+      "kind": "expertise",
+      "title": "Expertise rule",
+      "summary": "Technical decisions need explicit checkpoints.",
+      "evidenceRefs": [
+        "README.md"
+      ],
+      "status": "approved",
+      "approvedPayload": {
+        "targetRepo": "AI_CEO",
+        "promotionKind": "expertise",
+        "decisionId": "brief-3",
+        "title": "Expertise rule",
+        "summary": "Technical decisions need explicit checkpoints.",
+        "evidenceRefs": [
+          "README.md"
+        ],
+        "recommendation": "Proceed",
+        "kbWritebackContract": {
+          "suggestedCommand": "cd ../Agentic-KB && node cli/kb.js repo close-task AI_CEO ai-ceo-review 'expertise-brief-3.json'",
+          "targetPath": "wiki/repos/AI_CEO/review-exports/expertise-brief-3.json",
+          "reviewRequired": true
+        }
+      },
+      "audit": [
+        {
+          "reviewer": "Reviewer One",
+          "reviewerId": "reviewer-1",
+          "reviewerRole": "reviewer",
+          "action": "approve",
+          "rationale": "First reviewer approves",
+          "at": "2026-04-10T07:08:24.337Z"
+        },
+        {
+          "reviewer": "Reviewer Two",
+          "reviewerId": "reviewer-2",
+          "reviewerRole": "governance-admin",
+          "action": "approve",
+          "rationale": "Second reviewer approves",
+          "at": "2026-04-10T07:08:24.337Z"
+        }
+      ],
+      "writeback": null,
+      "createdAt": "2026-04-10T07:08:24.336Z",
+      "reviewNotes": "Second reviewer approves",
+      "reviewedAt": "2026-04-10T07:08:24.337Z"
+    },
+    "timeline": [
+      {
+        "id": "expertise_reviewed-brief-3-3",
+        "at": "2026-04-10T07:08:24.337Z",
+        "type": "expertise_reviewed",
+        "summary": "expertise proposal approved by Reviewer Two: Second reviewer approves"
+      },
+      {
+        "id": "expertise_reviewed-brief-3-2",
+        "at": "2026-04-10T07:08:24.337Z",
+        "type": "expertise_reviewed",
+        "summary": "expertise proposal under_review by Reviewer One: First reviewer approves"
+      },
+      {
+        "id": "decision-created-brief-3",
+        "at": "2026-04-10T07:08:24.336Z",
+        "type": "decision_created",
+        "summary": "Decision created for Expertise policy"
+      }
+    ],
+    "activeExpertise": [
+      "Technical decisions need explicit checkpoints."
+    ]
+  }
+]

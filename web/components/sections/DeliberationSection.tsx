@@ -1,6 +1,6 @@
 "use client";
 
-import type { DeliberationMessage, DeliberationSession } from "@/lib/types";
+import type { DecisionPacket, DeliberationMessage, DeliberationSession } from "@/lib/types";
 import { useState } from "react";
 import {
   ChevronDown,
@@ -82,10 +82,12 @@ function MessageRow({ msg }: { msg: DeliberationMessage }) {
 
 export function DeliberationSection({
   session,
+  packet,
   onOpenMemo,
   onSendToInbox,
 }: {
   session: DeliberationSession;
+  packet?: DecisionPacket | null;
   onOpenMemo: () => void;
   onSendToInbox: () => void;
 }) {
@@ -140,10 +142,90 @@ export function DeliberationSection({
         {/* Left — stances + tensions + map */}
         <div className="xl:col-span-5 space-y-4">
           <DecisionMapCard
-            recommendation={session.recommendation}
+            recommendation={packet?.recommendation.summary ?? session.recommendation}
             voteTally={session.voteTally}
             stances={session.stances}
           />
+
+          {packet && (
+            <>
+              <Card title="CEO Frame" right={`Confidence ${packet.recommendation.confidence}%`}>
+                <div className="space-y-3 text-sm text-slate-300">
+                  <p className="text-slate-100">{packet.boardDeliberation.ceoFrame}</p>
+                  <div>
+                    <p className="mb-1 text-xs uppercase tracking-wider text-slate-500">Recommendation</p>
+                    <p className="text-xs text-slate-300">{packet.boardDeliberation.recommendation}</p>
+                  </div>
+                  <div>
+                    <p className="mb-1 text-xs uppercase tracking-wider text-slate-500">Supporting evidence</p>
+                    <p className="text-xs text-slate-400">{packet.kbEvidence?.query ?? "No KB query"}</p>
+                    <p className="mt-1 text-xs text-slate-300">{packet.kbEvidence?.hits[0]?.snippet ?? "No evidence retrieved."}</p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card title="Board Rounds" right={`${packet.boardDeliberation.boardRounds.length} outputs`}>
+                <div className="space-y-2 text-xs text-slate-300">
+                  {packet.boardDeliberation.boardRounds.map((round) => (
+                    <div key={round.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Round {round.round} · {round.phase} · {round.role} → {round.target}</p>
+                      <p className="mt-1 text-sm text-slate-200">{round.summary}</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <Card title="Final Positions" right={`${packet.boardDeliberation.finalPositions.length} roles`}>
+                <div className="space-y-2">
+                  {packet.boardDeliberation.finalPositions.map((position) => (
+                    <div key={position.role} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-300">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-slate-100">{position.role}</p>
+                        <span className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200">{position.confidence}%</span>
+                      </div>
+                      <p className="mt-2"><span className="text-slate-500">Recommendation:</span> {position.recommendation}</p>
+                      <p className="mt-1"><span className="text-slate-500">Rationale:</span> {position.strongestRationale}</p>
+                      <p className="mt-1"><span className="text-slate-500">Risk:</span> {position.keyRisk}</p>
+                      <p className="mt-1"><span className="text-slate-500">Condition:</span> {position.conditionThatChangesView}</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              {packet.boardDeliberation.specialistOutputs?.length ? (
+                <Card title="Specialist Outputs" right={`${packet.boardDeliberation.specialistOutputs.length} specialists`}>
+                  <div className="space-y-2">
+                    {packet.boardDeliberation.specialistOutputs.map((output) => (
+                      <div key={output.role} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-300">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium text-slate-100">{output.role}</p>
+                          <span className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200">{output.confidence}%</span>
+                        </div>
+                        <p className="mt-2"><span className="text-slate-500">Recommendation:</span> {output.recommendation}</p>
+                        <p className="mt-1"><span className="text-slate-500">Rationale:</span> {output.strongestRationale}</p>
+                        <p className="mt-1"><span className="text-slate-500">Risk:</span> {output.keyRisk}</p>
+                        <p className="mt-1"><span className="text-slate-500">Condition:</span> {output.conditionThatChangesView}</p>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ) : null}
+
+              <Card title="Stance Matrix" right={`${packet.boardDeliberation.stanceMatrix.length} roles`}>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {packet.boardDeliberation.stanceMatrix.map((stance) => (
+                    <div key={stance.role} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-300">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm text-slate-100">{stance.role}</p>
+                        <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-slate-300">{stance.stance}</span>
+                      </div>
+                      <p className="mt-1 text-slate-400">Risk: {stance.keyRisk}</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </>
+          )}
 
           <Card title="Agent Stances" right={`${session.stances.length} members`}>
             <div className="space-y-2">
@@ -158,8 +240,36 @@ export function DeliberationSection({
         <div className="xl:col-span-7 space-y-4">
           <ConstraintMeter c={session.constraint} />
 
-          <Card title="Tensions" right={`${session.tensions.filter((t) => !t.resolved).length} unresolved`}>
-            <TensionPanel tensions={session.tensions} />
+          <Card title="Tensions" right={`${packet ? packet.boardDeliberation.unresolvedTensions.length : session.tensions.filter((t) => !t.resolved).length} unresolved`}>
+            {packet ? (
+              <div className="space-y-3 text-sm text-slate-300">
+                <div>
+                  <p className="mb-2 text-xs uppercase tracking-wider text-slate-500">Resolved</p>
+                  <div className="space-y-2">
+                    {packet.boardDeliberation.resolvedTensions.map((tension) => (
+                      <div key={tension.id} className="rounded-xl border border-emerald-300/20 bg-emerald-500/[0.05] p-3 text-xs">
+                        <p className="text-slate-100">{tension.between.join(" vs ")}</p>
+                        <p className="mt-1 text-slate-300">{tension.description}</p>
+                        <p className="mt-1 text-emerald-200">{tension.resolution}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-2 text-xs uppercase tracking-wider text-slate-500">Unresolved</p>
+                  <div className="space-y-2">
+                    {packet.boardDeliberation.unresolvedTensions.map((tension) => (
+                      <div key={tension.id} className="rounded-xl border border-amber-300/20 bg-amber-500/[0.05] p-3 text-xs">
+                        <p className="text-slate-100">{tension.between.join(" vs ")}</p>
+                        <p className="mt-1 text-slate-300">{tension.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <TensionPanel tensions={session.tensions} />
+            )}
           </Card>
 
           {/* Conversation log */}
@@ -235,6 +345,33 @@ export function DeliberationSection({
                 Send to Decision Inbox
               </Button>
             </div>
+
+            {packet && (
+              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <Card title="Risks">
+                  <div className="space-y-2 text-xs text-slate-300">
+                    {packet.boardDeliberation.risks.map((risk) => (
+                      <p key={risk}>{risk}</p>
+                    ))}
+                  </div>
+                </Card>
+                <Card title="Next Actions">
+                  <div className="space-y-2 text-xs text-slate-300">
+                    {packet.boardDeliberation.nextActions.map((action) => (
+                      <p key={action}>{action}</p>
+                    ))}
+                  </div>
+                </Card>
+                <Card title="Sofie Review">
+                  <p className="text-xs text-slate-200">{packet.boardDeliberation.sofieReview.summary}</p>
+                  <div className="mt-2 space-y-1">
+                    {packet.boardDeliberation.sofieReview.details.map((detail) => (
+                      <p key={detail} className="text-[11px] text-slate-500">{detail}</p>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            )}
           </Card>
         </div>
       </div>

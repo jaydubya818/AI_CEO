@@ -123,7 +123,7 @@ export type PromotionAuditEntry = {
   reviewer: string;
   reviewerId?: string;
   reviewerRole?: ReviewerRole;
-  action: "approve" | "reject" | "execute-writeback" | "ingest-reviewed";
+  action: "approve" | "reject" | "request-second-review" | "execute-writeback" | "ingest-reviewed";
   rationale: string;
   at: string;
 };
@@ -452,6 +452,13 @@ export type GovernanceQueueItem = {
   writebackExecuted: boolean;
   requiredApprovals: number;
   approvals: number;
+  reviewNotes?: string;
+  summary?: string;
+  latestAuditAt?: string | null;
+  latestAuditSummary?: string | null;
+  ingestExecuted?: boolean;
+  writebackTargetPath?: string | null;
+  ingestCanonicalPath?: string | null;
 };
 
 export type DecisionComparisonRow = {

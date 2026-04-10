@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ContextRail } from "@/components/layout/ContextRail";
 import { TrustStrip } from "@/components/layout/TrustStrip";
@@ -36,7 +36,7 @@ import {
 } from "@/lib/mockData";
 import { navItems } from "@/lib/navigation";
 import { makeTelemetryLog } from "@/lib/telemetry";
-import type { DecisionPacket, GateChecks, TelemetryEvent, TelemetryLog, Brief, StoredDecisionRecord, DecisionComparisonRow, DecisionOutcomeStatus, GovernanceQueueItem, ReviewerIdentity } from "@/lib/types";
+import type { DecisionPacket, GateChecks, TelemetryEvent, TelemetryLog, Brief, StoredDecisionRecord, DecisionComparisonRow, GovernanceQueueItem, ReviewerIdentity } from "@/lib/types";
 import { clamp } from "@/lib/utils";
 import { getInitialParam, syncUrlState } from "@/lib/urlState";
 
@@ -81,6 +81,9 @@ export default function Home() {
   const [governanceKindFilter, setGovernanceKindFilter] = useState("all");
   const [activeReviewer, setActiveReviewer] = useState<ReviewerIdentity>({ id: "reviewer-1", displayName: "Alex Reviewer", role: "reviewer" });
   const [reviewers, setReviewers] = useState<ReviewerIdentity[]>([]);
+  const [governanceFeedback, setGovernanceFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+  const [busyGovernanceAction, setBusyGovernanceAction] = useState<string | null>(null);
+  const [isRunningDeliberation, setIsRunningDeliberation] = useState(false);
 
   const selectedRisk = risks.find((risk) => risk.id === selectedRiskId) ?? risks[0];
   const selectedDecision =
@@ -127,33 +130,10 @@ export default function Home() {
   }, [selectedRiskId, selectedDecisionId, activeSection]);
 
   useEffect(() => {
-    const params = new URLSearchParams({ status: historyStatusFilter, q: historyQuery });
-    fetch(`/api/decision-history?${params.toString()}`)
-      .then((response) => response.json())
-      .then((payload: { records: StoredDecisionRecord[]; comparison: DecisionComparisonRow[] }) => {
-        setDecisionHistory(payload.records ?? []);
-        setDecisionComparison(payload.comparison ?? []);
-      })
-      .catch(() => undefined);
-  }, [decisionPacket, historyStatusFilter, historyQuery]);
-
-  useEffect(() => {
     fetch("/api/runtime-expertise")
       .then((response) => response.json())
       .then((payload: { activeExpertise: Array<{ summary: string }> }) => {
         setActiveExpertise((payload.activeExpertise ?? []).map((entry) => entry.summary));
-      })
-      .catch(() => undefined);
-
-    const queueParams = new URLSearchParams({
-      ...(governanceStatusFilter !== "all" ? { status: governanceStatusFilter } : {}),
-      ...(governanceKindFilter !== "all" ? { kind: governanceKindFilter } : {}),
-    });
-
-    fetch(`/api/governance-queue?${queueParams.toString()}`)
-      .then((response) => response.json())
-      .then((payload: { queue: GovernanceQueueItem[] }) => {
-        setGovernanceQueue(payload.queue ?? []);
       })
       .catch(() => undefined);
 
@@ -164,7 +144,7 @@ export default function Home() {
         setReviewers(payload.reviewers ?? []);
       })
       .catch(() => undefined);
-  }, [decisionHistory, governanceStatusFilter, governanceKindFilter]);
+  }, [decisionHistory]);
 
   const handleSectionClick = (id: string) => {
     setActiveSection(id);
@@ -201,17 +181,74 @@ export default function Home() {
 
   const evidenceCitations = useMemo(() => selectedRisk.citations, [selectedRisk]);
 
+  const refreshDecisionArtifacts = useCallback(async () => {
+    const params = new URLSearchParams({ status: historyStatusFilter, q: historyQuery });
+    const queueParams = new URLSearchParams({
+      ...(governanceStatusFilter !== "all" ? { status: governanceStatusFilter } : {}),
+      ...(governanceKindFilter !== "all" ? { kind: governanceKindFilter } : {}),
+    });
+    const [historyResponse, queueResponse] = await Promise.all([
+      fetch(`/api/decision-history?${params.toString()}`).catch(() => null),
+      fetch(`/api/governance-queue?${queueParams.toString()}`).catch(() => null),
+    ]);
+
+    if (historyResponse?.ok) {
+      const payload = await historyResponse.json() as { records: StoredDecisionRecord[]; comparison: DecisionComparisonRow[] };
+      setDecisionHistory(payload.records ?? []);
+      setDecisionComparison(payload.comparison ?? []);
+    }
+
+    if (queueResponse?.ok) {
+      const payload = await queueResponse.json() as { queue: GovernanceQueueItem[] };
+      setGovernanceQueue(payload.queue ?? []);
+    }
+  }, [governanceKindFilter, governanceStatusFilter, historyQuery, historyStatusFilter]);
+
+  const withGovernanceFeedback = async (
+    actionKey: string,
+    successMessage: string,
+    work: () => Promise<boolean>,
+  ) => {
+    setBusyGovernanceAction(actionKey);
+    setGovernanceFeedback(null);
+    try {
+      const ok = await work();
+      setGovernanceFeedback(ok
+        ? { tone: "success", message: successMessage }
+        : { tone: "error", message: "Action could not be completed. Check proposal state and try again." });
+    } catch {
+      setGovernanceFeedback({ tone: "error", message: "Action failed. Review local config or proposal state." });
+    } finally {
+      setBusyGovernanceAction(null);
+    }
+  };
+
+  useEffect(() => {
+    refreshDecisionArtifacts().catch(() => undefined);
+  }, [decisionPacket, refreshDecisionArtifacts]);
+
+  useEffect(() => {
+    if (!governanceFeedback) return;
+    const timer = setTimeout(() => setGovernanceFeedback(null), 4000);
+    return () => clearTimeout(timer);
+  }, [governanceFeedback]);
+
   const handleRunDeliberation = async (brief: Brief) => {
     trackEvent("brief_submitted", brief.id);
-    const response = await fetch("/api/decision-packet", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(brief),
-    }).catch(() => null);
-    if (response?.ok) {
-      const packet = (await response.json()) as DecisionPacket;
-      const runtimeModule = await import("@/lib/runtimeExpertise");
-      setDecisionPacket(runtimeModule.applyRuntimeExpertise(packet, activeExpertise));
+    setIsRunningDeliberation(true);
+    try {
+      const response = await fetch("/api/decision-packet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(brief),
+      }).catch(() => null);
+      if (response?.ok) {
+        const packet = (await response.json()) as DecisionPacket;
+        const runtimeModule = await import("@/lib/runtimeExpertise");
+        setDecisionPacket(runtimeModule.applyRuntimeExpertise(packet, activeExpertise));
+      }
+    } finally {
+      setIsRunningDeliberation(false);
     }
     handleSectionClick("deliberation");
   };
@@ -336,40 +373,56 @@ export default function Home() {
             }
           }}
           onReviewPromotion={async (decisionId, kind, action, reviewNotes) => {
-            const response = await fetch("/api/promotion-review", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ decisionId, kind, action, reviewNotes }),
-            }).catch(() => null);
-            if (response?.ok) {
+            const labelMap: Record<string, string> = {
+              approve: "Proposal approved.",
+              reject: "Proposal rejected.",
+              "request-second-review": "Proposal escalated for second review.",
+            };
+            await withGovernanceFeedback(`${decisionId}-${kind}-${action}`, labelMap[action], async () => {
+              const response = await fetch("/api/promotion-review", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ decisionId, kind, action, reviewNotes }),
+              }).catch(() => null);
+              if (!response?.ok) return false;
               const payload = await response.json();
               setDecisionHistory((prev) => prev.map((record) => record.id === decisionId ? payload.record : record));
-            }
+              await refreshDecisionArtifacts();
+              return true;
+            });
           }}
           onExecuteWriteback={async (decisionId, kind) => {
-            const response = await fetch("/api/writeback-execute", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ decisionId, kind, reviewer: activeReviewer.displayName, rationale: `Approved export executed by ${activeReviewer.displayName}` }),
-            }).catch(() => null);
-            if (response?.ok) {
+            await withGovernanceFeedback(`${decisionId}-${kind}-writeback`, "Writeback executed and audit updated.", async () => {
+              const response = await fetch("/api/writeback-execute", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ decisionId, kind, reviewer: activeReviewer.displayName, rationale: `Approved export executed by ${activeReviewer.displayName}` }),
+              }).catch(() => null);
+              if (!response?.ok) return false;
               const payload = await response.json();
               setDecisionHistory((prev) => prev.map((record) => record.id === decisionId ? payload.record : record));
-            }
+              await refreshDecisionArtifacts();
+              return true;
+            });
           }}
           onExecuteReviewedIngest={async (decisionId, kind) => {
-            const response = await fetch("/api/reviewed-ingest-execute", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ decisionId, kind, reviewer: activeReviewer.displayName, rationale: `Reviewed ingest executed by ${activeReviewer.displayName}` }),
-            }).catch(() => null);
-            if (response?.ok) {
+            await withGovernanceFeedback(`${decisionId}-${kind}-ingest`, "Reviewed ingest executed and canonical path recorded.", async () => {
+              const response = await fetch("/api/reviewed-ingest-execute", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ decisionId, kind, reviewer: activeReviewer.displayName, rationale: `Reviewed ingest executed by ${activeReviewer.displayName}` }),
+              }).catch(() => null);
+              if (!response?.ok) return false;
               const payload = await response.json();
               setDecisionHistory((prev) => prev.map((record) => record.id === decisionId ? payload.record : record));
-            }
+              await refreshDecisionArtifacts();
+              return true;
+            });
           }}
+          governanceFeedback={governanceFeedback}
+          busyGovernanceAction={busyGovernanceAction}
         />
-        <BriefingsSection onRunDeliberation={handleRunDeliberation} />
+        <BriefingsSection onRunDeliberation={handleRunDeliberation} isRunning={isRunningDeliberation} />
         <DeliberationSection
           session={activeDeliberation}
           packet={decisionPacket}

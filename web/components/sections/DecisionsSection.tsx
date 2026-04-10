@@ -53,6 +53,8 @@ export function DecisionsSection({
   activeReviewer,
   reviewers,
   onReviewerChange,
+  governanceFeedback,
+  busyGovernanceAction,
 }: {
   decisions: Decision[];
   selectedDecision: Decision;
@@ -100,6 +102,8 @@ export function DecisionsSection({
   activeReviewer: ReviewerIdentity;
   reviewers: ReviewerIdentity[];
   onReviewerChange: (reviewerId: string) => void;
+  governanceFeedback: { tone: "success" | "error"; message: string } | null;
+  busyGovernanceAction: string | null;
 }) {
   return (
     <section id="decisions" className="scroll-mt-28">
@@ -231,7 +235,7 @@ export function DecisionsSection({
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card title="Governance Queue" right={activeReviewer.displayName}>
+        <Card title="Governance Queue" right={`${governanceQueue.length} visible · ${activeReviewer.displayName}`}>
           <div className="mb-3 grid grid-cols-1 gap-2">
             <select
               value={activeReviewer.id}
@@ -264,28 +268,119 @@ export function DecisionsSection({
               <option value="expertise">Expertise</option>
             </select>
           </div>
-          <div className="space-y-2 text-xs text-slate-300">
-            {governanceQueue.map((item) => (
-              <div key={`${item.decisionId}-${item.kind}`} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-slate-100">{item.title}</p>
-                  <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-slate-300">{item.status}</span>
+          {governanceFeedback ? (
+            <div
+              className={`mb-3 rounded-xl border px-3 py-2 text-xs ${governanceFeedback.tone === "success"
+                ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-100"
+                : "border-rose-400/25 bg-rose-500/10 text-rose-100"}`}
+            >
+              {governanceFeedback.message}
+            </div>
+          ) : null}
+          <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400">
+            Review proposals explicitly, verify approval count, then execute writeback and reviewed ingest in sequence.
+          </div>
+          <div className="space-y-3 text-xs text-slate-300">
+            {governanceQueue.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-4 text-slate-500">No governance proposals match the current filters.</div>
+            ) : governanceQueue.map((item) => {
+              const actionPrefix = `${item.decisionId}-${item.kind}`;
+              const statusTone = item.status === "approved"
+                ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-100"
+                : item.status === "rejected"
+                  ? "border-rose-400/25 bg-rose-500/10 text-rose-100"
+                  : item.status === "executed"
+                    ? "border-cyan-400/25 bg-cyan-500/10 text-cyan-100"
+                    : "border-white/10 bg-white/[0.03] text-slate-300";
+
+              const isTerminalState = item.status === "executed" || item.status === "rejected";
+              const disableWriteback = item.status !== "approved";
+              const disableIngest = !item.writebackExecuted || item.ingestExecuted;
+
+              return (
+                <div key={`${item.decisionId}-${item.kind}`} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm text-slate-100">{item.title}</p>
+                      <p className="mt-1 text-[11px] text-slate-500">{item.kind} proposal · decision {item.decisionId}</p>
+                    </div>
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] ${statusTone}`}>{item.status.replace("_", " ")}</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                    <div className="rounded-lg border border-white/10 bg-black/10 p-2">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Approval progress</p>
+                      <p className="mt-1 text-slate-200">{item.approvals}/{item.requiredApprovals} approvals</p>
+                      <p className="mt-1 text-slate-500">{item.reviewNotes ?? "No review note recorded yet."}</p>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-black/10 p-2">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Execution state</p>
+                      <p className="mt-1 text-slate-200">Writeback: {item.writebackExecuted ? "executed" : "pending"}</p>
+                      <p className="mt-1 text-slate-200">Ingest: {item.ingestExecuted ? "executed" : "pending"}</p>
+                    </div>
+                  </div>
+                  {item.summary ? (
+                    <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.02] p-2">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Proposal summary</p>
+                      <p className="mt-1 text-slate-300">{item.summary}</p>
+                    </div>
+                  ) : null}
+                  <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.02] p-2">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Latest audit</p>
+                    <p className="mt-1 text-slate-300">{item.latestAuditSummary ?? "No audit activity yet."}</p>
+                    <p className="mt-1 text-[10px] text-slate-500">{item.latestAuditAt ? new Date(item.latestAuditAt).toLocaleString() : "Awaiting review"}</p>
+                  </div>
+                  {(item.writebackTargetPath || item.ingestCanonicalPath) ? (
+                    <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <div className="rounded-lg border border-cyan-400/15 bg-cyan-500/[0.05] p-2">
+                        <p className="text-[10px] uppercase tracking-wider text-cyan-200">Writeback path</p>
+                        <p className="mt-1 break-all text-[11px] text-cyan-50">{item.writebackTargetPath ?? "Pending"}</p>
+                      </div>
+                      <div className="rounded-lg border border-violet-400/15 bg-violet-500/[0.05] p-2">
+                        <p className="text-[10px] uppercase tracking-wider text-violet-200">Canonical ingest path</p>
+                        <p className="mt-1 break-all text-[11px] text-violet-50">{item.ingestCanonicalPath ?? "Pending"}</p>
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => onReviewPromotion(item.decisionId, item.kind, "request-second-review", "Escalated for second reviewer")}
+                      disabled={isTerminalState || busyGovernanceAction === `${actionPrefix}-request-second-review`}
+                      className="rounded-full border border-amber-400/25 bg-amber-500/10 px-2.5 py-1 text-[10px] text-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {busyGovernanceAction === `${actionPrefix}-request-second-review` ? "Working..." : "Second review"}
+                    </button>
+                    <button
+                      onClick={() => onReviewPromotion(item.decisionId, item.kind, "approve", "Approved from governance queue")}
+                      disabled={isTerminalState || busyGovernanceAction === `${actionPrefix}-approve`}
+                      className="rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2.5 py-1 text-[10px] text-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {busyGovernanceAction === `${actionPrefix}-approve` ? "Working..." : "Approve"}
+                    </button>
+                    <button
+                      onClick={() => onReviewPromotion(item.decisionId, item.kind, "reject", "Rejected from governance queue")}
+                      disabled={isTerminalState || busyGovernanceAction === `${actionPrefix}-reject`}
+                      className="rounded-full border border-rose-400/25 bg-rose-500/10 px-2.5 py-1 text-[10px] text-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {busyGovernanceAction === `${actionPrefix}-reject` ? "Working..." : "Reject"}
+                    </button>
+                    <button
+                      onClick={() => onExecuteWriteback(item.decisionId, item.kind)}
+                      disabled={disableWriteback || busyGovernanceAction === `${actionPrefix}-writeback`}
+                      className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-2.5 py-1 text-[10px] text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {busyGovernanceAction === `${actionPrefix}-writeback` ? "Working..." : "Writeback"}
+                    </button>
+                    <button
+                      onClick={() => onExecuteReviewedIngest(item.decisionId, item.kind)}
+                      disabled={disableIngest || busyGovernanceAction === `${actionPrefix}-ingest`}
+                      className="rounded-full border border-violet-400/25 bg-violet-500/10 px-2.5 py-1 text-[10px] text-violet-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {busyGovernanceAction === `${actionPrefix}-ingest` ? "Working..." : "Ingest"}
+                    </button>
+                  </div>
                 </div>
-                <p className="mt-1 text-slate-500">{item.kind} · approvals {item.approvals}/{item.requiredApprovals} · writeback {item.writebackExecuted ? "executed" : "pending"}</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button onClick={() => onReviewPromotion(item.decisionId, item.kind, "request-second-review", "Escalated for second reviewer")}
-                    className="rounded-full border border-amber-400/25 bg-amber-500/10 px-2.5 py-1 text-[10px] text-amber-200">Second review</button>
-                  <button onClick={() => onReviewPromotion(item.decisionId, item.kind, "approve", "Approved from governance queue")}
-                    className="rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2.5 py-1 text-[10px] text-emerald-200">Approve</button>
-                  <button onClick={() => onReviewPromotion(item.decisionId, item.kind, "reject", "Rejected from governance queue")}
-                    className="rounded-full border border-rose-400/25 bg-rose-500/10 px-2.5 py-1 text-[10px] text-rose-200">Reject</button>
-                  <button onClick={() => onExecuteWriteback(item.decisionId, item.kind)}
-                    className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-2.5 py-1 text-[10px] text-cyan-200">Writeback</button>
-                  <button onClick={() => onExecuteReviewedIngest(item.decisionId, item.kind)}
-                    className="rounded-full border border-violet-400/25 bg-violet-500/10 px-2.5 py-1 text-[10px] text-violet-200">Ingest</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
 
@@ -415,84 +510,105 @@ export function DecisionsSection({
           <Card title="Memory Promotion" right="Review-only scaffold">
             <div className="space-y-3 text-xs text-slate-300">
               <p>Promote a bounded learning proposal back toward Agentic-KB review.</p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => onPromoteMemory(packet.brief.id, `${packet.brief.title} learning`, packet.boardDeliberation.recommendation)}
-                  className="rounded-full border border-violet-400/25 bg-violet-500/10 px-3 py-1 text-violet-200"
-                >
-                  Propose memory promotion
-                </button>
-                <button
-                  onClick={() => onProposeExpertise(packet.brief.id, `${packet.brief.title} expertise update`, packet.boardDeliberation.risks[0] ?? packet.boardDeliberation.recommendation)}
-                  className="rounded-full border border-amber-400/25 bg-amber-500/10 px-3 py-1 text-amber-200"
-                >
-                  Propose expertise update
-                </button>
-              </div>
-              {decisionHistory.find((record) => record.id === packet.brief.id)?.memoryProposal && (
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                  <p className="text-slate-100">Memory proposal</p>
-                  <p className="mt-1 text-slate-400">{decisionHistory.find((record) => record.id === packet.brief.id)?.memoryProposal?.summary}</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <button
-                      onClick={() => onReviewPromotion(packet.brief.id, "memory", "approve", "Approved for bounded KB writeback export")}
-                      className="rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3 py-1 text-emerald-200"
-                    >
-                      Approve memory
-                    </button>
-                    <button
-                      onClick={() => onReviewPromotion(packet.brief.id, "memory", "reject", "Rejected pending better evidence")}
-                      className="rounded-full border border-rose-400/25 bg-rose-500/10 px-3 py-1 text-rose-200"
-                    >
-                      Reject memory
-                    </button>
-                    <button
-                      onClick={() => onExecuteWriteback(packet.brief.id, "memory")}
-                      className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-3 py-1 text-cyan-200"
-                    >
-                      Execute writeback
-                    </button>
-                    <button
-                      onClick={() => onExecuteReviewedIngest(packet.brief.id, "memory")}
-                      className="rounded-full border border-violet-400/25 bg-violet-500/10 px-3 py-1 text-violet-200"
-                    >
-                      Execute ingest
-                    </button>
-                  </div>
-                </div>
-              )}
-              {decisionHistory.find((record) => record.id === packet.brief.id)?.expertiseProposal && (
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                  <p className="text-slate-100">Expertise proposal</p>
-                  <p className="mt-1 text-slate-400">{decisionHistory.find((record) => record.id === packet.brief.id)?.expertiseProposal?.summary}</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <button
-                      onClick={() => onReviewPromotion(packet.brief.id, "expertise", "approve", "Approved for bounded expertise writeback export")}
-                      className="rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3 py-1 text-emerald-200"
-                    >
-                      Approve expertise
-                    </button>
-                    <button
-                      onClick={() => onReviewPromotion(packet.brief.id, "expertise", "reject", "Rejected pending reviewer changes")}
-                      className="rounded-full border border-rose-400/25 bg-rose-500/10 px-3 py-1 text-rose-200"
-                    >
-                      Reject expertise
-                    </button>
-                    <button
-                      onClick={() => onExecuteWriteback(packet.brief.id, "expertise")}
-                      className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-3 py-1 text-cyan-200"
-                    >
-                      Execute writeback
-                    </button>
-                    <button
-                      onClick={() => onExecuteReviewedIngest(packet.brief.id, "expertise")}
-                      className="rounded-full border border-violet-400/25 bg-violet-500/10 px-3 py-1 text-violet-200"
-                    >
-                      Execute ingest
-                    </button>
-                  </div>
-                </div>
-              )}
+              {(() => {
+                const packetRecord = decisionHistory.find((r) => r.id === packet.brief.id);
+                const memP = packetRecord?.memoryProposal ?? null;
+                const expP = packetRecord?.expertiseProposal ?? null;
+                const memTerminal = memP?.status === "approved" || memP?.status === "rejected" || memP?.status === "executed";
+                const expTerminal = expP?.status === "approved" || expP?.status === "rejected" || expP?.status === "executed";
+                return (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => onPromoteMemory(packet.brief.id, `${packet.brief.title} learning`, packet.boardDeliberation.recommendation)}
+                        disabled={!!memP}
+                        className="rounded-full border border-violet-400/25 bg-violet-500/10 px-3 py-1 text-violet-200 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Propose memory promotion
+                      </button>
+                      <button
+                        onClick={() => onProposeExpertise(packet.brief.id, `${packet.brief.title} expertise update`, packet.boardDeliberation.risks[0] ?? packet.boardDeliberation.recommendation)}
+                        disabled={!!expP}
+                        className="rounded-full border border-amber-400/25 bg-amber-500/10 px-3 py-1 text-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Propose expertise update
+                      </button>
+                    </div>
+                    {memP && (
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                        <p className="text-slate-100">Memory proposal</p>
+                        <p className="mt-1 text-slate-400">{memP.summary}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            onClick={() => onReviewPromotion(packet.brief.id, "memory", "approve", "Approved for bounded KB writeback export")}
+                            disabled={memTerminal}
+                            className="rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3 py-1 text-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Approve memory
+                          </button>
+                          <button
+                            onClick={() => onReviewPromotion(packet.brief.id, "memory", "reject", "Rejected pending better evidence")}
+                            disabled={memTerminal}
+                            className="rounded-full border border-rose-400/25 bg-rose-500/10 px-3 py-1 text-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Reject memory
+                          </button>
+                          <button
+                            onClick={() => onExecuteWriteback(packet.brief.id, "memory")}
+                            disabled={memP.status !== "approved" || !!memP.writeback}
+                            className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-3 py-1 text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Execute writeback
+                          </button>
+                          <button
+                            onClick={() => onExecuteReviewedIngest(packet.brief.id, "memory")}
+                            disabled={!memP.writeback || !!memP.writeback.ingestResponse}
+                            className="rounded-full border border-violet-400/25 bg-violet-500/10 px-3 py-1 text-violet-200 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Execute ingest
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {expP && (
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                        <p className="text-slate-100">Expertise proposal</p>
+                        <p className="mt-1 text-slate-400">{expP.summary}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            onClick={() => onReviewPromotion(packet.brief.id, "expertise", "approve", "Approved for bounded expertise writeback export")}
+                            disabled={expTerminal}
+                            className="rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3 py-1 text-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Approve expertise
+                          </button>
+                          <button
+                            onClick={() => onReviewPromotion(packet.brief.id, "expertise", "reject", "Rejected pending reviewer changes")}
+                            disabled={expTerminal}
+                            className="rounded-full border border-rose-400/25 bg-rose-500/10 px-3 py-1 text-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Reject expertise
+                          </button>
+                          <button
+                            onClick={() => onExecuteWriteback(packet.brief.id, "expertise")}
+                            disabled={expP.status !== "approved" || !!expP.writeback}
+                            className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-3 py-1 text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Execute writeback
+                          </button>
+                          <button
+                            onClick={() => onExecuteReviewedIngest(packet.brief.id, "expertise")}
+                            disabled={!expP.writeback || !!expP.writeback.ingestResponse}
+                            className="rounded-full border border-violet-400/25 bg-violet-500/10 px-3 py-1 text-violet-200 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Execute ingest
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
               {(() => {
                 const record = decisionHistory.find((entry) => entry.id === packet.brief.id);
                 const approvedPayload = record?.memoryProposal?.approvedPayload ?? record?.expertiseProposal?.approvedPayload;

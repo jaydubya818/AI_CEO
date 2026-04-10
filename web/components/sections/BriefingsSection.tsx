@@ -38,9 +38,11 @@ function validateBrief(brief: Partial<Brief>): BriefSection[] {
 function BriefCard({
   brief,
   onRun,
+  isRunning,
 }: {
   brief: Brief;
   onRun: (brief: Brief) => void;
+  isRunning?: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
@@ -84,12 +86,12 @@ function BriefCard({
         <Button
           variant={brief.valid ? "default" : "secondary"}
           size="sm"
-          disabled={!brief.valid}
+          disabled={!brief.valid || !!isRunning}
           onClick={() => onRun(brief)}
           className={!brief.valid ? "cursor-not-allowed text-slate-500" : ""}
         >
           <Play className="h-3.5 w-3.5" />
-          Run Deliberation
+          {isRunning ? "Running..." : "Run Deliberation"}
         </Button>
       </div>
     </div>
@@ -219,8 +221,10 @@ function BriefBuilder({ onSubmit }: { onSubmit: (brief: Brief) => void }) {
 
 export function BriefingsSection({
   onRunDeliberation,
+  isRunning,
 }: {
   onRunDeliberation: (brief: Brief) => void;
+  isRunning?: boolean;
 }) {
   const [briefs, setBriefs] = useState<Brief[]>(briefTemplates);
   const [showBuilder, setShowBuilder] = useState(false);
@@ -287,7 +291,7 @@ export function BriefingsSection({
                   </span>
                 </div>
               )}
-              <BriefCard brief={brief} onRun={onRunDeliberation} />
+              <BriefCard brief={brief} onRun={onRunDeliberation} isRunning={isRunning} />
             </div>
           ))}
         </div>

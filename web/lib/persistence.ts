@@ -300,9 +300,9 @@ export async function reviewPromotionProposal(input: {
   const proposal = input.kind === "memory" ? next.memoryProposal : next.expertiseProposal;
   if (!proposal) return null;
 
-  const priorApprovals = proposal.audit.filter((entry) => entry.action === "approve").length;
+  const priorApprovals = proposal.audit.filter((entry) => entry.action === "approve" || entry.action === "request-second-review").length;
   const requiredApprovals = input.kind === "expertise" ? 2 : 1;
-  const nextApprovals = input.action === "approve" ? priorApprovals + 1 : priorApprovals;
+  const nextApprovals = (input.action === "approve" || input.action === "request-second-review") ? priorApprovals + 1 : priorApprovals;
   proposal.status = input.action === "reject"
     ? "rejected"
     : input.action === "request-second-review"
@@ -316,7 +316,7 @@ export async function reviewPromotionProposal(input: {
     reviewer: input.reviewer,
     reviewerId: input.reviewerId,
     reviewerRole: input.reviewerRole,
-    action: input.action === "request-second-review" ? "approve" : input.action,
+    action: input.action,
     rationale: input.reviewNotes,
     at: nowIso(),
   });
@@ -383,6 +383,42 @@ export async function executeReviewedIngest(
   next.updatedAt = nowIso();
   await writeDecisionHistory(records);
   return next;
+}
+
+export function makeGovernanceQueue(records: StoredDecisionRecord[], filters?: { status?: ProposalReviewStatus | "all"; kind?: PromotionKind | "all" }) {
+  return records
+    .flatMap((record) => {
+      const proposals = [record.memoryProposal, record.expertiseProposal].filter(
+        (proposal): proposal is MemoryPromotionProposal | ExpertiseUpdateProposal => Boolean(proposal),
+      );
+      return proposals.map((proposal) => {
+        const latestAudit = proposal.audit.at(-1) ?? null;
+        return {
+          decisionId: record.id,
+          title: proposal.title,
+          kind: proposal.kind,
+          status: proposal.status,
+          reviewedAt: proposal.reviewedAt ?? null,
+          writebackExecuted: Boolean(proposal.writeback),
+          requiredApprovals: proposal.kind === "expertise" ? 2 : 1,
+          approvals: proposal.audit.filter((entry) => entry.action === "approve").length,
+          reviewNotes: proposal.reviewNotes,
+          summary: proposal.summary,
+          latestAuditAt: latestAudit?.at ?? null,
+          latestAuditSummary: latestAudit ? `${latestAudit.reviewer}: ${latestAudit.action} — ${latestAudit.rationale}` : null,
+          ingestExecuted: Boolean(proposal.writeback?.ingestResponse?.ingested),
+          writebackTargetPath: proposal.writeback?.targetPath ?? null,
+          ingestCanonicalPath: proposal.writeback?.ingestResponse?.canonicalPath ?? null,
+        };
+      });
+    })
+    .filter((item) => (filters?.status && filters.status !== "all") ? item.status === filters.status : true)
+    .filter((item) => (filters?.kind && filters.kind !== "all") ? item.kind === filters.kind : true)
+    .sort((a, b) => {
+      const aTime = Date.parse(a.latestAuditAt ?? a.reviewedAt ?? "0");
+      const bTime = Date.parse(b.latestAuditAt ?? b.reviewedAt ?? "0");
+      return bTime - aTime;
+    });
 }
 
 export function compareDecisionRecords(records: StoredDecisionRecord[], filters?: {

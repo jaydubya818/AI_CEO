@@ -84,6 +84,15 @@ export type DecisionOutcome = {
   updatedAt: string;
 };
 
+export type ProviderExecutionTrace = {
+  provider: string;
+  mode: "blocked" | "fallback" | "live";
+  model?: string;
+  latencyMs?: number;
+  usedFallback: boolean;
+  blockedReason?: string | null;
+};
+
 export type ProposalReviewStatus = "proposed" | "under_review" | "approved" | "rejected" | "executed";
 export type PromotionKind = "memory" | "expertise";
 
@@ -341,6 +350,7 @@ export type DecisionPacket = {
     nextActions: string[];
     supportingEvidenceRefs: string[];
     specialistOutputs?: SpecialistOutput[];
+    specialistTrace?: ProviderExecutionTrace;
     sofieReview: {
       actor: "sofie";
       kind: string;
@@ -421,6 +431,16 @@ export type StoredDecisionRecord = {
   expertiseProposal: ExpertiseUpdateProposal | null;
   timeline: DecisionTimelineEvent[];
   activeExpertise: string[];
+  executionFollowThrough?: {
+    owner: string;
+    status: "planned" | "in_progress" | "done";
+    nextCheckpoint: string;
+  } | null;
+  outcomeLearning?: {
+    learningSummary: string;
+    promoted: boolean;
+  } | null;
+  cadenceKey?: string;
 };
 
 export type GovernanceQueueItem = {
@@ -442,6 +462,8 @@ export type DecisionComparisonRow = {
   outcomeStatus: DecisionOutcomeStatus | "pending";
   domain: string;
   changedSinceDecision: string;
+  specialistSummary?: string;
+  cadenceKey?: string;
 };
 
 export type StoryStep = {

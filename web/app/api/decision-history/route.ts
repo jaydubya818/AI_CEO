@@ -11,6 +11,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const recommendationQuery = searchParams.get("q") ?? "";
   return NextResponse.json({
     records,
-    comparison: compareDecisionRecords(records, { status, domain, recommendationQuery }),
+    comparison: compareDecisionRecords(records, { status, domain, recommendationQuery }).map((row) => {
+      const record = records.find((entry) => entry.id === row.id);
+      return {
+        ...row,
+        specialistSummary: record?.packet.boardDeliberation.specialistOutputs?.map((output) => `${output.role}:${output.confidence}`).join(" | ") ?? "",
+        cadenceKey: record?.brief.title.split("—")[0]?.trim() ?? record?.brief.title,
+      };
+    }),
   });
 }

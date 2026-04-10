@@ -1,281 +1,468 @@
 # AI_CEO
 
-AI_CEO is an AI-native executive decision platform designed to turn **uncertainty in → decisions out**.
+AI_CEO is the product/application layer for an AI-native executive decision system.
 
-It is built to help founders, CEOs, chiefs of staff, product leaders, engineering leaders, and operator-led teams run structured, inspectable, repeatable decision sessions instead of relying on fragmented context, ad hoc chats, and vague AI summaries.
+It is built to help a CEO, founder, chief of staff, or operator-led team turn a structured brief into a governed decision session with visible reasoning, durable memory, explicit review flows, and bounded promotion into external knowledge.
 
-This repo is the **product/application layer** of the system.
+This repo is intentionally separate from:
+- **Agentic Pi Harness**: runtime/control-plane/orchestration layer
+- **Sofie**: bounded post-review/operator advisor inside the harness
+- **Agentic-KB**: external authoritative knowledge and reviewed-ingest/canonical memory system
 
-It works with:
-- **Agentic Pi Harness** — orchestration/runtime/control plane
-- **Sofie** — bounded reviewer/operator/advisor inside the harness
-- **Agentic-KB** — authoritative external knowledge graph, memory, retrieval, and reviewed-ingest target
+AI_CEO is not the control plane and not the canonical KB.
 
 ---
 
-## What AI_CEO is
+## Product overview
 
-AI_CEO is not a generic chatbot.
+AI_CEO is a decision operating system, not a generic chat UI.
 
-It is a product for:
-- structured executive decision sessions
-- reusable decision briefs
-- CEO framing
-- specialist reasoning
+The current MVP focuses on:
+- decision briefs
+- executive decision packets
 - board-style deliberation artifacts
-- durable decision memory
-- governance and review flows
-- reviewed writeback and canonical ingest into Agentic-KB
+- bounded specialist reasoning
+- decision governance and approvals
+- durable local history
+- explicit reviewed writeback and reviewed ingest into Agentic-KB
+- outcome/execution/cadence scaffolds
 
-The goal is to create a system where:
-- a user submits a brief
-- a decision packet is built
-- specialist/board reasoning is applied
-- structured outputs are generated
-- history is preserved
-- outcomes are tracked
-- approved learnings are promoted into governed organizational memory
+The goal of the MVP is to make decision-making:
+- structured
+- inspectable
+- reviewable
+- replayable
+- governed
+- incrementally learnable
 
 ---
 
-## System architecture
+## Current MVP capabilities
 
-### Repo roles
+### Real decision-session flow
+- submit a brief
+- retrieve bounded AI_CEO repo context from Agentic-KB
+- build a structured decision packet
+- run bounded specialist reasoning
+- render CEO frame, board outputs, final positions, tensions, risks, and next actions
+- persist the resulting decision record locally
 
-#### AI_CEO
-This repo. Responsible for:
-- product/app UX
-- decision packet generation
-- history and persistence
-- governance queue
-- promotion review flows
-- reviewed writeback initiation
-- reviewed-ingest invocation into Agentic-KB
-- local reviewer identity scaffolding
-- runtime expertise shaping
-- future specialist reasoning entry seam
+### Governance and review
+- reviewer identity selection via local reviewer auth scaffold
+- proposal creation for:
+  - memory promotion
+  - expertise promotion
+- governance queue with filtering and actions
+- explicit approval/rejection flow
+- second-review enforcement for expertise proposals
+- explicit writeback and explicit reviewed-ingest execution
+- durable audit trail and timeline
 
-#### Agentic Pi Harness
-External runtime/orchestration/control plane. Responsible for:
-- bounded orchestration
-- session/runtime artifacts
-- replayable decision/session flows
-- Sofie integration
-- proof-path and canonical golden protections
+### Specialist reasoning
+- bounded one-pass specialist set:
+  - Product Strategist
+  - Revenue Agent
+  - Technical Architect
+  - Contrarian
+- structured specialist outputs:
+  - recommendation
+  - strongest rationale
+  - key risk
+  - condition that changes the view
+  - confidence
+- specialist outputs influence:
+  - CEO frame refinement
+  - recommendation shaping
+  - next actions
+  - tensions
+  - final positions where roles match
+- provider-capable execution path with deterministic fallback
 
-#### Sofie
-Bounded advisor/reviewer/operator helper. Responsible for:
-- bounded review/closure/scoping guidance
-- artifact interpretation
-- escalation for true blockers
-- post-deliberation/operator support
+### Durable memory/history
+- local file-backed decision history
+- reopen prior decisions
+- decision comparison view
+- timeline/audit visibility
+- proposal status visibility
+- artifact diff snippets
 
-Sofie is **not** a second orchestrator.
+### Explicit Agentic-KB integration
+- reviewed writeback to repo-scoped review-export paths
+- explicit reviewed-ingest invocation into Agentic-KB canonical learned area
+- canonical merge logic stays in Agentic-KB
 
-#### Agentic-KB
-External and authoritative knowledge/memory system. Responsible for:
-- knowledge retrieval
+### Scaffolds now present
+- execution follow-through scaffold
+- outcome learning scaffold
+- operating cadence grouping scaffold by cadence/topic key
+- provider observability trace scaffold for specialist execution
+
+---
+
+## Architecture boundaries
+
+### AI_CEO
+This repo owns:
+- product UX
+- decision packet orchestration at the app layer
+- local persistence/history
+- reviewer/governance UX and APIs
+- explicit writeback initiation
+- explicit reviewed-ingest invocation
+- specialist reasoning seam and packet-visible outputs
+- bounded execution/outcome/cadence scaffolds
+
+### Agentic Pi Harness
+External runtime/control-plane layer.
+
+It owns:
+- frozen runtime/proof-path surfaces
+- bounded orchestration logic
+- Sofie runtime behavior
+- replay/control-plane concerns
+
+This repo should **not** become the harness.
+
+### Sofie
+Sofie remains a bounded post-review/operator advisor.
+
+Sofie is **not** widened by this repo and is **not** a free-roaming orchestrator.
+
+### Agentic-KB
+External authoritative knowledge system.
+
+It owns:
+- repo-scoped knowledge retrieval
+- reviewed export targets
 - reviewed ingest
-- canonical learned docs
-- repo-scoped reviewed memory storage
-- authoritative knowledge context
+- canonical learned memory
 
-AI_CEO does **not** absorb Agentic-KB canonical state.
+AI_CEO does **not** write canonical KB content silently or directly outside explicit reviewed flows.
 
 ---
 
-## Current MVP status
+## Setup / environment requirements
 
-AI_CEO currently includes a bounded MVP that supports:
-- real decision packet generation
-- structured decision packet types
-- API-backed decision packet flow
-- durable decision/session storage
-- decision history retrieval
-- reopen previous decisions
-- simple decision comparison
-- outcome tracking scaffold
-- memory promotion proposal scaffold
-- expertise promotion proposal scaffold
-- governance queue state and actions
-- reviewed writeback execution
-- reviewed-ingest invocation into Agentic-KB
-- reviewer identity scaffolding
-- runtime expertise shaping
-- artifact/timeline/audit visibility
-- model-backed specialist reasoning entry seam
+### Repo location assumptions
+Current local workflows assume sibling repos similar to:
+- `~/Pi/AI_CEO`
+- `~/Pi/Agentic-KB`
+- `~/Pi/pi-multi-team-local/Agentic-Pi-Harness`
+
+### Node / packages
+- use the package manager already present in `web/`
+- install dependencies in `web/`
+
+### Required / useful environment variables
+#### Agentic-KB integration
+- `AGENTIC_KB_URL`
+  - default local expectation: `http://localhost:3002`
+- `AGENTIC_KB_PATH`
+  - optional local path override for explicit reviewed export writeback
+
+#### Specialist reasoning
+- `AI_CEO_SPECIALIST_ENABLED`
+  - `0` disables specialist reasoning
+- `AI_CEO_SPECIALIST_PROVIDER`
+  - `stub` (default)
+  - `openai-compatible`
+  - `disabled`
+- `AI_CEO_SPECIALIST_ALLOW_LIVE`
+  - `1` to allow live provider use
+- `AI_CEO_SPECIALIST_DISABLED_ROLES`
+  - comma-separated role names to disable
+- `AI_CEO_SPECIALIST_BASE_URL`
+  - base URL for OpenAI-compatible provider
+- `AI_CEO_SPECIALIST_API_KEY`
+  - provider API key
+- `AI_CEO_SPECIALIST_MODEL`
+  - model name, defaults to `gpt-4o-mini`
+
+### Reviewer/auth model
+Reviewer identity is currently local/MVP-oriented:
+- cookie-backed reviewer selection
+- optional header-based resolution for API calls
+- roles:
+  - `reviewer`
+  - `governance-admin`
+
+This is not production auth yet.
 
 ---
 
-## Current capabilities
+## Dev commands
 
-### 1. Decision packet flow
+Run from `web/`:
 
-AI_CEO generates a real server-backed decision packet that can include:
-- brief
-- structured deliberation result
-- final positions
-- tensions
-- recommendation
-- risks
-- next actions
-- KB evidence references
-- outcome scaffold
-- promotion scaffolds
+```bash
+npm install
+npm run test
+npm run build
+npm run dev
+```
 
-### 2. Durable decision memory
+Available scripts:
+- `npm run dev`
+- `npm run build`
+- `npm run start`
+- `npm run lint`
+- `npm run test`
 
-AI_CEO persists decision history locally. Current storage includes:
-- brief
-- full decision packet
-- deliberation result
-- final positions, tensions, recommendation, risks, next actions
-- evidence references
-- outcome state
-- proposal state
-- audit events
-- timeline events
+Notes:
+- `lint` exists and is practical to run when needed
+- there is no separate standalone typecheck script; `next build` covers TypeScript checks
 
-### 3. Governance and review
+---
 
-AI_CEO supports governed promotion flows for memory and expertise, including:
-- proposal creation, review, approval/rejection
-- second-review transitions
-- explicit writeback execution
-- explicit reviewed-ingest execution
-- auditability
-- visible queue state
+## Key APIs/routes that exist now
 
-### 4. Reviewed writeback + reviewed ingest
+Under `web/app/api/`:
 
-AI_CEO can explicitly:
-1. generate approved payloads
-2. write reviewed export files into Agentic-KB review-export paths
-3. invoke Agentic-KB reviewed-ingest routes
-4. receive canonical ingest results back
+- `/api/auth/reviewer`
+  - GET/POST
+  - read/set local reviewer identity scaffold
+- `/api/decision-packet`
+  - POST
+  - build the decision packet for a submitted brief
+- `/api/decision-history`
+  - GET
+  - return stored decision history + comparison rows
+- `/api/decision-outcome`
+  - POST
+  - update outcome status/notes/change summary
+- `/api/memory-promotion`
+  - POST
+  - create/update memory promotion proposal
+- `/api/expertise-promotion`
+  - POST
+  - create/update expertise proposal
+- `/api/promotion-review`
+  - POST
+  - apply governance review transitions/policy
+- `/api/governance-queue`
+  - GET
+  - return governance queue state with filters
+- `/api/writeback-execute`
+  - POST
+  - execute explicit reviewed export writeback to Agentic-KB review-export namespace
+- `/api/reviewed-ingest-execute`
+  - POST
+  - invoke Agentic-KB reviewed-ingest after explicit reviewed export exists
+- `/api/runtime-expertise`
+  - GET
+  - expose current active expertise-derived runtime state
 
-This path is explicit, inspectable, review-gated, non-silent, and auditable.
+---
 
-### 5. Runtime expertise shaping
+## Key modules that exist now
 
-Approved expertise can affect live packet/runtime behavior in a bounded, visible, reversible way. Current bounded effects include shaping:
-- CEO frame augmentation
-- next-action generation
-- packet-level expertise application narrative
-- specialist reasoning entry seam context
+Important app-layer modules under `web/lib/`:
 
-### 6. Artifact exploration
+- `persistence.ts`
+  - durable local decision storage
+  - governance state updates
+  - writeback/ingest audit recording
+- `auth.ts`
+  - reviewer identity scaffold
+- `agenticKbClient.ts`
+  - AI_CEO -> Agentic-KB reviewed-ingest invocation
+- `kbWriteback.ts`
+  - explicit reviewed export writeback
+- `reasoningEntry.ts`
+  - specialist reasoning provider/config seam
+- `specialistPolicy.ts`
+  - specialist execution policy resolution and validation
+- `specialistProvider.ts`
+  - live OpenAI-compatible provider call path
+- `specialistReasoning.ts`
+  - bounded specialist execution and packet refinement
+- `runtimeExpertise.ts`
+  - visible, bounded runtime expertise shaping
 
-AI_CEO surfaces:
-- timeline events
-- audit events
-- proposal state transitions
-- writeback execution visibility
-- reviewed-ingest execution visibility
-- recommendation diff surface
-- changed-since-decision display
+Important UI sections:
+- `components/sections/BriefingsSection.tsx`
+- `components/sections/DeliberationSection.tsx`
+- `components/sections/DecisionsSection.tsx`
 
 ---
 
 ## Governance model
 
 ### Proposal kinds
-- memory promotion
-- expertise promotion
+- memory
+- expertise
 
 ### Governance states
-- `proposed` → `under_review` → `approved` / `rejected` → `executed`
+- `proposed`
+- `under_review`
+- `approved`
+- `rejected`
+- `executed`
 
-### Reviewer model
-Roles: `reviewer`, `governance-admin`
+### Reviewer roles
+- `reviewer`
+- `governance-admin`
 
-Expertise proposals require two approvals before reaching approved state.
+### Current policy behavior
+- explicit reviewer identity is recorded for governance actions
+- expertise proposals require two approvals before becoming approved
+- governance-admin role has stronger approval authority
+- approvals, writeback, and ingest are all auditable
 
----
-
-## APIs
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/decision-packet` | POST | Build a structured decision packet |
-| `/api/decision-history` | GET | Return stored decision/session history |
-| `/api/decision-outcome` | POST | Update a stored decision outcome (`executed`, `deferred`, `reversed`, `validated`, `invalidated`) |
-| `/api/memory-promotion` | POST | Create/update memory promotion proposal |
-| `/api/expertise-promotion` | POST | Create/update expertise promotion proposal |
-| `/api/promotion-review` | POST | Handle approve/reject and review-state transitions |
-| `/api/governance-queue` | GET | Return governance queue state |
-| `/api/writeback-execute` | POST | Execute reviewed export/writeback into Agentic-KB |
-| `/api/reviewed-ingest-execute` | POST | Invoke Agentic-KB reviewed-ingest after explicit review/writeback |
-| `/api/runtime-expertise` | GET | Return current bounded runtime expertise state |
-| `/api/auth/reviewer` | GET / POST | Read/set the current local reviewer identity scaffold |
+This is an MVP governance system, not a production authz system.
 
 ---
 
-## File/data model
+## Reviewed writeback + reviewed-ingest flow with Agentic-KB
 
-Local durable storage: `web/.data/decision-history.json`
+Current explicit flow:
 
-Key product objects:
-- decision packet, stored decision record, deliberation result
-- final position, tension record, decision summary
-- outcome record, memory promotion proposal, expertise promotion proposal
-- audit event, governance queue item, runtime expertise state
+1. AI_CEO creates/approves a proposal
+2. AI_CEO builds an approved payload with explicit target path/contract
+3. AI_CEO executes reviewed export writeback into Agentic-KB review-export namespace
+4. AI_CEO explicitly invokes reviewed ingest
+5. Agentic-KB ingests into:
+   - repo-scoped reviewed-ingest record
+   - repo-scoped canonical learned doc
 
----
+Properties of this flow:
+- explicit
+- inspectable
+- review-gated
+- auditable
+- externalized to Agentic-KB
+- reversible by path/file operations, not hidden mutation
 
-## Specialist reasoning direction
-
-AI_CEO includes a bounded entry seam for future model-backed specialist reasoning. The current direction:
-- specialist config is explicit
-- runtime injection is visible
-- future reasoning must remain inspectable and bounded
-- future reasoning must not silently widen authority
-
-Planned first specialist set: Product Strategist, Revenue Agent, Technical Architect, Contrarian
-
-Optional next layer: Compounder, Moonshot
+There are **no silent canonical writes** from AI_CEO into Agentic-KB.
 
 ---
 
-## Repo separation guarantees
+## Specialist reasoning layer
 
-**AI_CEO does:**
-- product UX, decision memory, governance, proposal review, audit
-- explicit writeback initiation and reviewed-ingest invocation
-- runtime shaping
+### Bounded specialist set
+Current specialists:
+- Product Strategist
+- Revenue Agent
+- Technical Architect
+- Contrarian
 
-**AI_CEO does not:**
-- become the canonical KB or absorb Agentic-KB canonical state
-- replace the harness runtime or widen Sofie into orchestration
+### Provider behavior
+Specialist execution supports:
+- `stub`
+  - deterministic fallback/default
+- `openai-compatible`
+  - real provider-backed path when env/config is present and live use is allowed
+- `disabled`
+  - specialist reasoning blocked by policy
+
+### Output shape
+Every specialist must return:
+- `recommendation`
+- `strongest rationale`
+- `key risk`
+- `condition that changes the view`
+- `confidence`
+
+### Policy and fallback behavior
+Specialist execution policy determines:
+- whether reasoning is enabled
+- which specialists are allowed
+- whether live provider use is allowed
+- whether fallback is used
+- when execution is blocked
+
+If provider config is missing or live calls fail, the system falls back to deterministic outputs.
+
+### Observability
+Packet artifacts include a specialist execution trace with:
+- provider
+- mode (`blocked` / `fallback` / `live`)
+- model
+- latency
+- fallback use
+- blocked reason
+
+### Boundaries
+This layer is intentionally bounded:
+- one pass only
+- fixed specialist set only
+- no debate swarm
+- no recursive orchestration
+- no hidden autonomy creep
 
 ---
 
-## Safety and boundedness
+## Execution / outcome / cadence scaffolds
 
-AI_CEO is intentionally bounded. Current rules:
-- no silent writeback or automatic canonical promotion
-- no hidden repo collapse or silent governance bypass
-- no hidden expertise behavior or broad execution/task automation
-- no widening of Sofie authority from this repo
+### Execution follow-through
+Stored decision records now include a bounded follow-through scaffold:
+- owner
+- status (`planned`, `in_progress`, `done`)
+- next checkpoint
+
+### Outcome learning
+Stored decision records include a bounded learning scaffold:
+- learning summary
+- promoted flag
+
+### Operating cadence
+Stored decision records include a derived cadence/topic key so related decisions can be grouped over time.
+
+This is a scaffold, not a full recurring operating cadence system yet.
 
 ---
 
-## Project layout
+## Quality gates / available verification
 
-| Path | Purpose |
-|------|---------|
-| `web/` | Next.js app (App Router), Tailwind CSS, TypeScript |
-| `web/.data/` | Local durable decision/session storage |
-| `CLAUDE.md` | Project conventions and GSD workflow |
-
----
-
-## Local development
+Relevant quality gates currently practical for this repo:
 
 ```bash
 cd web
-npm install
-npm run dev       # http://localhost:3001
-npm run build     # production build
-npm run lint      # ESLint
+npm run test
+npm run build
 ```
+
+`npm run lint` is also available.
+
+At the time of updating this README, the product has repeatedly been verified through tests/builds in the current MVP cycle.
+
+---
+
+## Known limitations / caveats
+
+This repo is **not yet production-proven**.
+
+Important caveats:
+- reviewer identity is local/MVP-grade, not production auth
+- governance policy is explicit but still simplified
+- specialist provider path is real but may remain unverified live if creds/config are unavailable
+- deterministic fallback is heavily relied on for stability and tests
+- browser-interactive governance behavior is not fully proven unless manually exercised in a real browser session
+- writeback/ingest flows are explicit and bounded, but broader enterprise auth/audit hardening is still missing
+- execution follow-through, outcome learning, and operating cadence are scaffolds, not full production loops
+- Agentic Pi Harness remains frozen for proof-path/runtime surfaces and should not be treated as app-layer mutable infrastructure from this repo
+
+---
+
+## MVP status
+
+### What is real now
+- structured decision packets
+- bounded specialist reasoning seam
+- provider-capable specialist execution path
+- deterministic fallback
+- governance queue and reviewer model scaffold
+- explicit writeback and reviewed-ingest flow with Agentic-KB
+- durable history and comparison
+- audit/timeline visibility
+- bounded runtime expertise shaping
+- execution/outcome/cadence scaffolds
+
+### What is not complete yet
+- production-grade authn/authz
+- fully proven live provider operation in all environments
+- full artifact explorer/version diff UX
+- full execution/follow-through/outcome automation
+- full PRD-level operating cadence across the business
+
+AI_CEO is currently a **bounded, working MVP foundation**, not a production-complete operating system.

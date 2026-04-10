@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applySpecialistOutputs, runSpecialistReasoning } from "./specialistReasoning";
+import { applySpecialistOutputs, executeSpecialistWithTrace, runSpecialistReasoning } from "./specialistReasoning";
+import { resolveSpecialistExecutionPolicy, validateSpecialistOutputs } from "./specialistPolicy";
 import type { DecisionPacket } from "./types";
 
 function samplePacket(): DecisionPacket {
@@ -81,4 +82,39 @@ test("specialist outputs refine packet visibly", async () => {
   assert.ok(updated.boardDeliberation.ceoFrame.includes("Specialist views"));
   assert.ok(updated.boardDeliberation.nextActions.length > packet.boardDeliberation.nextActions.length);
   assert.ok((updated.boardDeliberation.specialistOutputs?.length ?? 0) === 4);
+});
+
+test("specialist policy resolves fallback when live provider not allowed", () => {
+  const packet = samplePacket();
+  const policy = resolveSpecialistExecutionPolicy({ brief: packet.brief, packet });
+  assert.ok(["fallback", "live", "blocked"].includes(policy.mode));
+  assert.ok(Array.isArray(policy.allowedRoles));
+});
+
+test("specialist output validation catches incomplete outputs", () => {
+  const validation = validateSpecialistOutputs([
+    {
+      role: "Product Strategist",
+      recommendation: "",
+      strongestRationale: "ok",
+      keyRisk: "ok",
+      conditionThatChangesView: "ok",
+      confidence: 80,
+    },
+  ]);
+  assert.equal(validation.ok, false);
+  assert.ok(validation.errors[0]?.includes("missing recommendation"));
+});
+
+test("fallback prevents hidden autonomy creep by keeping fixed specialist set", async () => {
+  const packet = samplePacket();
+  const outputs = await runSpecialistReasoning({ brief: packet.brief, packet });
+  assert.deepEqual(outputs.map((output) => output.role), ["Product Strategist", "Revenue Agent", "Technical Architect", "Contrarian"]);
+});
+
+test("provider trace is inspectable even when fallback is used", async () => {
+  const packet = samplePacket();
+  const result = await executeSpecialistWithTrace({ role: "Revenue Agent", brief: packet.brief, kbSnippet: packet.kbEvidence?.hits[0]?.snippet });
+  assert.ok(result.trace.provider.length > 0);
+  assert.equal(typeof result.trace.usedFallback, "boolean");
 });

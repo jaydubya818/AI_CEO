@@ -161,6 +161,13 @@ export function DeliberationSection({
                     <p className="text-xs text-slate-400">{packet.kbEvidence?.query ?? "No KB query"}</p>
                     <p className="mt-1 text-xs text-slate-300">{packet.kbEvidence?.hits[0]?.snippet ?? "No evidence retrieved."}</p>
                   </div>
+                  {packet.boardDeliberation.specialistTrace ? (
+                    <div>
+                      <p className="mb-1 text-xs uppercase tracking-wider text-slate-500">Specialist execution</p>
+                      <p className="text-xs text-slate-300">{packet.boardDeliberation.specialistTrace.provider} · {packet.boardDeliberation.specialistTrace.mode}</p>
+                      <p className="mt-1 text-xs text-slate-500">Fallback: {String(packet.boardDeliberation.specialistTrace.usedFallback)} {packet.boardDeliberation.specialistTrace.blockedReason ? `· ${packet.boardDeliberation.specialistTrace.blockedReason}` : ""}</p>
+                    </div>
+                  ) : null}
                 </div>
               </Card>
 

@@ -91,6 +91,16 @@ export type StoredDecisionRecord = {
   expertiseProposal: ExpertiseUpdateProposal | null;
   timeline: DecisionTimelineEvent[];
   activeExpertise: string[];
+  executionFollowThrough?: {
+    owner: string;
+    status: "planned" | "in_progress" | "done";
+    nextCheckpoint: string;
+  } | null;
+  outcomeLearning?: {
+    learningSummary: string;
+    promoted: boolean;
+  } | null;
+  cadenceKey?: string;
 };
 
 const storageDir = path.join(process.cwd(), ".data");
@@ -139,6 +149,7 @@ function appendTimeline(record: StoredDecisionRecord, event: Omit<DecisionTimeli
 
 export function makeStoredDecisionRecord(input: { brief: Brief; packet: DecisionPacket }): StoredDecisionRecord {
   const timestamp = nowIso();
+  const cadenceKey = input.brief.title.split("—")[0]?.trim() || input.brief.title.split(":")[0]?.trim() || input.brief.title;
   return {
     id: input.brief.id,
     createdAt: timestamp,
@@ -148,6 +159,9 @@ export function makeStoredDecisionRecord(input: { brief: Brief; packet: Decision
     outcome: null,
     memoryProposal: null,
     expertiseProposal: null,
+    executionFollowThrough: { owner: "Unassigned", status: "planned", nextCheckpoint: "Next review" },
+    outcomeLearning: null,
+    cadenceKey,
     timeline: [
       {
         id: `decision-created-${input.brief.id}`,
@@ -396,5 +410,6 @@ export function compareDecisionRecords(records: StoredDecisionRecord[], filters?
       outcomeStatus: record.outcome?.status ?? "pending",
       domain: record.brief.title,
       changedSinceDecision: record.outcome?.changedSinceDecision ?? "No outcome change recorded yet.",
+      cadenceKey: record.cadenceKey,
     }));
 }

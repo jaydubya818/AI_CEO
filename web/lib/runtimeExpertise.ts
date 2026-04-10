@@ -1,14 +1,15 @@
 import type { DecisionPacket } from "./types";
-import { specialistReasoningConfig } from "./reasoningEntry";
+import { getSpecialistReasoningConfig } from "./reasoningEntry";
 
 export function applyRuntimeExpertise(packet: DecisionPacket, activeExpertise: string[]): DecisionPacket {
   if (activeExpertise.length === 0) return packet;
   const expertiseNote = activeExpertise.join(" | ");
+  const config = getSpecialistReasoningConfig();
   return {
     ...packet,
     boardDeliberation: {
       ...packet.boardDeliberation,
-      ceoFrame: `${packet.boardDeliberation.ceoFrame} Active expertise: ${expertiseNote}. Specialist seam: ${specialistReasoningConfig.specialists.filter((entry) => entry.enabled).map((entry) => `${entry.role}:${entry.reasonerKey}`).join(" | ")}`,
+      ceoFrame: `${packet.boardDeliberation.ceoFrame} Active expertise: ${expertiseNote}. Specialist seam: ${config.specialists.filter((entry) => entry.enabled).map((entry) => `${entry.role}:${entry.reasonerKey}`).join(" | ")}`,
       finalPositions: packet.boardDeliberation.finalPositions.map((position) =>
         position.role === "Technical Architect" || position.role === "Compounder"
           ? {

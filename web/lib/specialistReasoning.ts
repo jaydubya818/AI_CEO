@@ -1,4 +1,7 @@
-import type { Brief, DecisionPacket, FinalPosition } from "./types";
+import type { Brief, DecisionPacket, FinalPosition, ProviderExecutionTrace } from "./types";
+import { getSpecialistReasoningConfig } from "./reasoningEntry";
+import { resolveSpecialistExecutionPolicy, validateSpecialistOutputs } from "./specialistPolicy";
+import { runOpenAiCompatibleSpecialist } from "./specialistProvider";
 
 export type SpecialistRole = "Product Strategist" | "Revenue Agent" | "Technical Architect" | "Contrarian";
 
@@ -41,15 +44,53 @@ function deterministicFallback(input: {
   };
 }
 
-async function envBackedReasoner(input: {
+export async function executeSpecialistWithTrace(input: {
   role: SpecialistRole;
   brief: Pick<Brief, "title" | "situation" | "stakes" | "constraints" | "keyQuestions">;
   kbSnippet?: string;
-}): Promise<SpecialistOutput> {
-  const provider = process.env.AI_CEO_SPECIALIST_PROVIDER ?? "stub";
-  if (provider === "stub") return deterministicFallback(input);
-
-  return deterministicFallback(input);
+}): Promise<{ output: SpecialistOutput; trace: ProviderExecutionTrace }> {
+  const config = getSpecialistReasoningConfig();
+  const startedAt = Date.now();
+  if (config.provider === "openai-compatible" && config.allowLiveProvider) {
+    try {
+      const output = await runOpenAiCompatibleSpecialist(input);
+      return {
+        output,
+        trace: {
+          provider: "openai-compatible",
+          mode: "live",
+          model: process.env.AI_CEO_SPECIALIST_MODEL ?? "gpt-4o-mini",
+          latencyMs: Date.now() - startedAt,
+          usedFallback: false,
+          blockedReason: null,
+        },
+      };
+    } catch {
+      const output = deterministicFallback(input);
+      return {
+        output,
+        trace: {
+          provider: "openai-compatible",
+          mode: "fallback",
+          model: process.env.AI_CEO_SPECIALIST_MODEL ?? "gpt-4o-mini",
+          latencyMs: Date.now() - startedAt,
+          usedFallback: true,
+          blockedReason: "live provider failed; fallback used",
+        },
+      };
+    }
+  }
+  const output = deterministicFallback(input);
+  return {
+    output,
+    trace: {
+      provider: config.provider,
+      mode: config.provider === "disabled" ? "blocked" : "fallback",
+      latencyMs: Date.now() - startedAt,
+      usedFallback: true,
+      blockedReason: config.provider === "disabled" ? "provider disabled" : null,
+    },
+  };
 }
 
 export async function runSpecialistReasoning(input: {
@@ -57,10 +98,24 @@ export async function runSpecialistReasoning(input: {
   packet: DecisionPacket;
   reasoner?: SpecialistReasoner;
 }): Promise<SpecialistOutput[]> {
-  const reasoner = input.reasoner ?? envBackedReasoner;
+  const policy = resolveSpecialistExecutionPolicy({ brief: input.brief, packet: input.packet });
+  if (!policy.enabled || policy.mode === "blocked") return [];
+
+  const reasoner = input.reasoner;
   const kbSnippet = input.packet.kbEvidence?.hits[0]?.snippet;
-  const roles: SpecialistRole[] = ["Product Strategist", "Revenue Agent", "Technical Architect", "Contrarian"];
-  return await Promise.all(roles.map((role) => reasoner({ role, brief: input.brief, kbSnippet })));
+  const roles = policy.allowedRoles as SpecialistRole[];
+  const traces: ProviderExecutionTrace[] = [];
+  const outputs = await Promise.all(roles.map(async (role) => {
+    if (reasoner) return await reasoner({ role, brief: input.brief, kbSnippet });
+    const executed = await executeSpecialistWithTrace({ role, brief: input.brief, kbSnippet });
+    traces.push(executed.trace);
+    return executed.output;
+  }));
+  const validation = validateSpecialistOutputs(outputs);
+  if (!validation.ok) {
+    return roles.map((role) => deterministicFallback({ role, brief: input.brief, kbSnippet }));
+  }
+  return outputs.map((output) => output);
 }
 
 export function applySpecialistOutputs(packet: DecisionPacket, outputs: SpecialistOutput[]): DecisionPacket {
@@ -104,6 +159,19 @@ export function applySpecialistOutputs(packet: DecisionPacket, outputs: Speciali
       nextActions: [...packet.boardDeliberation.nextActions, ...extraActions],
       risks: [...packet.boardDeliberation.risks, ...extraRisks],
       unresolvedTensions: tensions,
+      specialistOutputs: outputs,
+      specialistTrace: outputs.length > 0 ? {
+        provider: getSpecialistReasoningConfig().provider,
+        mode: getSpecialistReasoningConfig().provider === "openai-compatible" && getSpecialistReasoningConfig().allowLiveProvider ? "live" : "fallback",
+        model: process.env.AI_CEO_SPECIALIST_MODEL,
+        usedFallback: !(getSpecialistReasoningConfig().provider === "openai-compatible" && getSpecialistReasoningConfig().allowLiveProvider),
+        blockedReason: null,
+      } : {
+        provider: getSpecialistReasoningConfig().provider,
+        mode: "blocked",
+        usedFallback: false,
+        blockedReason: "specialist reasoning blocked",
+      },
     },
   };
 }

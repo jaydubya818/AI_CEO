@@ -384,6 +384,12 @@ export function DecisionsSection({
                 <p className="mt-1">Confidence: {row.confidence}%</p>
                 <p className="mt-1 text-slate-500">{row.recommendation}</p>
                 <p className="mt-1 text-slate-500">Changed: {row.changedSinceDecision}</p>
+                {row.specialistSummary ? (
+                  <p className="mt-1 text-slate-500">Specialists: {row.specialistSummary}</p>
+                ) : null}
+                {row.cadenceKey ? (
+                  <p className="mt-1 text-slate-500">Cadence: {row.cadenceKey}</p>
+                ) : null}
               </div>
             ))}
           </div>
